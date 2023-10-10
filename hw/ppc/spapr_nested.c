@@ -1167,13 +1167,17 @@ static target_ulong h_guest_get_capabilities(PowerPCCPU *cpu,
         return H_PARAMETER;
     }
 
-    if ((env->spr[SPR_PVR] & CPU_POWERPC_POWER_SERVER_MASK) ==
-        (CPU_POWERPC_POWER9_BASE))
-        env->gpr[4] = H_GUEST_CAPABILITIES_P9_MODE;
+    /* P10 capabilities */
+    if (ppc_check_compat(cpu, CPU_POWERPC_LOGICAL_3_10, 0,
+        spapr->max_compat_pvr)) {
+        env->gpr[4] |= H_GUEST_CAPABILITIES_P10_MODE;
+    }
 
-    if ((env->spr[SPR_PVR] & CPU_POWERPC_POWER_SERVER_MASK) ==
-        (CPU_POWERPC_POWER10_BASE))
-        env->gpr[4] = H_GUEST_CAPABILITIES_P10_MODE;
+    /* P9 capabilities */
+    if (ppc_check_compat(cpu, CPU_POWERPC_LOGICAL_3_00, 0,
+        spapr->max_compat_pvr)) {
+        env->gpr[4] |= H_GUEST_CAPABILITIES_P9_MODE;
+    }
 
     return H_SUCCESS;
 }
@@ -1196,16 +1200,18 @@ static target_ulong h_guest_set_capabilities(PowerPCCPU *cpu,
         return H_P2; /* isn't supported */
     }
 
-    if ((env->spr[SPR_PVR] & CPU_POWERPC_POWER_SERVER_MASK) ==
-        (CPU_POWERPC_POWER9_BASE)) {
+    if (ppc_check_compat(cpu, CPU_POWERPC_LOGICAL_3_00, 0,
+        spapr->max_compat_pvr)) {
+        /* We are a P9 */
         if (!(capabilities & H_GUEST_CAPABILITIES_P9_MODE)) {
             env->gpr[4] = 1;
             return H_P2;
         }
     }
 
-    if ((env->spr[SPR_PVR] & CPU_POWERPC_POWER_SERVER_MASK) ==
-        (CPU_POWERPC_POWER10_BASE)) {
+    if (ppc_check_compat(cpu, CPU_POWERPC_LOGICAL_3_10, 0,
+        spapr->max_compat_pvr)) {
+        /* We are a P10 */
         if (!(capabilities & H_GUEST_CAPABILITIES_P10_MODE)) {
             env->gpr[4] = 2;
             return H_P2;
