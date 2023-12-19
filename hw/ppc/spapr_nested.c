@@ -1191,6 +1191,11 @@ static target_ulong h_guest_get_capabilities(PowerPCCPU *cpu,
         return H_PARAMETER;
     }
 
+    /* Verify the calling partition is configured to host the guests */
+    if (!spapr_get_cap(spapr, SPAPR_CAP_NESTED_PAPR)) {
+        return H_AUTHORITY;
+    }
+
     /* P10 capabilities */
     if (ppc_check_compat(cpu, CPU_POWERPC_LOGICAL_3_10, 0,
         spapr->max_compat_pvr)) {
@@ -1214,32 +1219,51 @@ static target_ulong h_guest_set_capabilities(PowerPCCPU *cpu,
     CPUPPCState *env = &cpu->env;
     target_ulong flags = args[0];
     target_ulong capabilities = args[1];
+    env->gpr[4] = 0;
 
     if (flags) { /* don't handle any flags capabilities for now */
         return H_PARAMETER;
     }
 
     if (capabilities & H_GUEST_CAPABILITIES_COPY_MEM) {
-        env->gpr[4] = 0;
+        env->gpr[4] = 1;
         return H_P2; /* isn't supported */
     }
 
-    if (ppc_check_compat(cpu, CPU_POWERPC_LOGICAL_3_00, 0,
-        spapr->max_compat_pvr)) {
-        /* We are a P9 */
-        if (!(capabilities & H_GUEST_CAPABILITIES_P9_MODE)) {
-            env->gpr[4] = 1;
-            return H_P2;
-        }
+    /* Confirm there are no guests created yet */
+    if (spapr->nested.guests) {
+        return H_STATE;
     }
 
-    if (ppc_check_compat(cpu, CPU_POWERPC_LOGICAL_3_10, 0,
-        spapr->max_compat_pvr)) {
-        /* We are a P10 */
-        if (!(capabilities & H_GUEST_CAPABILITIES_P10_MODE)) {
-            env->gpr[4] = 2;
-            return H_P2;
+    /* If there are no capabilities configured, set the R5 to the index of
+     * the first supported Power Processor Mode
+     */
+    if (!capabilities) {
+        env->gpr[4] = 1;
+
+        /* set R5 to the first supported Power Processor Mode */
+        if(ppc_check_compat(cpu, CPU_POWERPC_LOGICAL_3_10, 0,
+                            spapr->max_compat_pvr)) {
+            env->gpr[5] = H_GUEST_CAP_P10_MODE_BMAP;
         }
+        else if (ppc_check_compat(cpu, CPU_POWERPC_LOGICAL_3_00, 0,
+                                  spapr->max_compat_pvr)) {
+            env->gpr[5] = H_GUEST_CAP_P9_MODE_BMAP;
+        }
+
+        return H_P2;
+    }
+
+    /* If an invalid capability is set, R5 should contain the index of the
+     * invalid capability bit
+     */
+    if (capabilities & ~H_GUEST_CAP_VALID_MASK) {
+        env->gpr[4] = 1;
+
+        /* Set R5 to the index of the invalid capability */
+        env->gpr[5] = 63 - ctz64(capabilities);
+
+        return H_P2;
     }
 
     if (!spapr->nested.capabilities_set) {

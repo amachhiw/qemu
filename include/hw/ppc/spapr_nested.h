@@ -215,6 +215,9 @@ typedef struct SpaprMachineStateNestedGuest {
 #define H_GUEST_CAP_P9_MODE_BMAP      1
 #define H_GUEST_CAP_P10_MODE_BMAP     2
 #define PAPR_NESTED_GUEST_MAX         4096
+#define H_GUEST_CAP_VALID_MASK        (H_GUEST_CAPABILITIES_P10_MODE | \
+                                       H_GUEST_CAPABILITIES_P9_MODE)
+
 #define H_GUEST_DELETE_ALL_FLAG       0x8000000000000000ULL
 #define PAPR_NESTED_GUEST_VCPU_MAX    2048
 #define VCPU_OUT_BUF_MIN_SZ           0x80ULL
